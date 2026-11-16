@@ -1,0 +1,211 @@
+{% extends "admin/_shell.html" %}
+{% block judul %}Penghuni · Smart Locker{% endblock %}
+{% block judul_halaman %}Penghuni{% endblock %}
+{% block sub %}Akun penghuni dan kartu RFID · {{ warga|selectattr('role', 'equalto', 'penghuni')|list|length }} kamar terdaftar{% endblock %}
+{% block aksi %}
+  <a class="tombol" href="{{ url_for('admin.deposits') }}">Riwayat deposit</a>
+{% endblock %}
+
+{% block isi %}
+<div class="kartu" style="padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+  <span class="sub" style="margin:0">Cari</span>
+  <input class="input" id="cari" placeholder="Cari nama atau nomor kamar" style="height:40px;max-width:320px">
+</div>
+
+{% if edit is none %}
+  {% set aksi_form = url_for('admin.kamar') %}
+  {% set judul_form = 'Tambah penghuni' %}
+  {% set uid_awal = '' %}
+{% else %}
+  {% set aksi_form = url_for('admin.kamar') %}
+  {% set judul_form = 'Edit penghuni · ' ~ edit.nama %}
+  {% set uid_awal = edit.rfid_uid or '' %}
+{% endif %}
+
+<div class="kartu" style="padding:20px 8px">
+  <table id="tabel-penghuni">
+    <thead>
+      <tr>
+        <th style="padding-left:20px">Penghuni</th>
+        <th>Kamar</th>
+        <th>RFID</th>
+        <th>Telegram</th>
+        <th>Paket</th>
+        <th>Peran</th>
+        <th style="text-align:right;padding-right:20px">Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for w in warga %}
+        <tr data-cari="{{ (w.nama ~ ' ' ~ w.nomor_kamar)|lower }}"
+            {% if edit and edit.id == w.id %}class="baris-edit"{% endif %}>
+          <td style="padding-left:20px">
+            <div style="display:flex;align-items:center;gap:14px">
+              <span class="avatar" style="width:40px;height:40px;font-size:13px;background:#e9e3fc;color:#5b3fc4">
+                {{ w.nama.split()[0][:1] }}{{ w.nama.split()[1][:1] if w.nama.split()|length > 1 else '' }}
+              </span>
+              <span class="nama">{{ w.nama }}</span>
+            </div>
+          </td>
+          <td>{{ w.nomor_kamar }}</td>
+          <td class="mono">{{ w.rfid_uid or '—' }}</td>
+          <td>
+            <span class="pill {{ 'ok' if w.telegram_chat_id else 'neut' }}">
+              {{ 'Terhubung' if w.telegram_chat_id else 'Belum' }}
+            </span>
+          </td>
+          <td>{{ w.parcels|selectattr('status', 'equalto', 'tersimpan')|list|length }}</td>
+          <td><span class="pill {{ 'info' if w.admin else 'neut' }}">{{ w.role }}</span></td>
+          <td style="text-align:right;padding-right:20px;white-space:nowrap">
+            {% if not w.admin %}
+              <a class="tombol kecil" href="{{ url_for('admin.kamar', edit=w.id) }}">Edit</a>
+              {% if w.rfid_uid %}
+                <form method="post" style="display:inline"
+                      action="{{ url_for('admin.hapus_kartu', resident_id=w.id) }}"
+                      onsubmit="return confirm('Lepas kartu {{ w.rfid_uid }} dari {{ w.nama }}?')">
+                  <button class="tombol kecil bahaya" type="submit">Lepas</button>
+                </form>
+              {% endif %}
+            {% else %}
+              <span class="sub">—</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="kartu" style="margin-top:16px" id="panel-form">
+  <div class="kepala-kartu">
+    <h2>{{ judul_form }}</h2>
+    {% if edit %}
+      <a class="tombol kecil" href="{{ url_for('admin.kamar') }}">Batal edit</a>
+    {% endif %}
+  </div>
+
+  <form method="post" action="{{ aksi_form }}"
+        style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin-top:12px">
+    <input type="hidden" name="resident_id" value="{{ edit.id if edit else '' }}">
+    <div><label class="label" for="nama">Nama</label>
+      <input class="input" id="nama" name="nama" required
+             value="{{ edit.nama if edit else '' }}"></div>
+    <div><label class="label" for="nomor_kamar">Nomor kamar</label>
+      <input class="input" id="nomor_kamar" name="nomor_kamar" required
+             value="{{ edit.nomor_kamar if edit else '' }}"></div>
+
+    {% if edit is none %}
+      <div><label class="label" for="password">Password awal</label>
+        <input class="input" id="password" name="password" type="password"
+               minlength="6" required></div>
+    {% else %}
+      <div><label class="label">Password</label>
+        <input class="input" value="Tidak diubah di sini" disabled></div>
+    {% endif %}
+
+    <div>
+      <label class="label" for="rfid_uid">Kartu RFID</label>
+      <div class="baris-kartu">
+        <input class="input mono" id="rfid_uid" name="rfid_uid" readonly required
+               value="{{ uid_awal }}" placeholder="Belum ada kartu ditempel">
+        <button class="tombol" type="button" id="tap-kartu">
+          {{ 'Tempel kartu baru' if edit else 'Tempel kartu' }}
+        </button>
+      </div>
+      <p class="petunjuk" id="status-kartu" data-uid="{{ uid_awal }}">
+        {% if uid_awal %}
+          Kartu terdaftar: <b>{{ uid_awal }}</b>. Tekan <b>Tempel kartu baru</b> untuk mengganti.
+        {% else %}
+          Tekan <b>Tempel kartu</b>, lalu tempelkan kartu ke reader di loker — UID terisi otomatis.
+        {% endif %}
+      </p>
+    </div>
+
+    <div style="grid-column:1/-1;margin-top:22px;display:flex;gap:8px">
+      <button class="tombol gelap" type="submit" id="simpan-penghuni"
+              {{ 'disabled' if not uid_awal }}>
+        {{ 'Simpan perubahan' if edit else 'Tambah penghuni' }}
+      </button>
+      {% if edit %}
+        <a class="tombol" href="{{ url_for('admin.kamar') }}">Batal</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block skrip %}
+<script>
+  const cari = document.getElementById('cari');
+  const baris = [...document.querySelectorAll('#tabel-penghuni tbody tr')];
+  cari.addEventListener('input', () => {
+    const q = cari.value.toLowerCase().trim();
+    baris.forEach(b => b.style.display = b.dataset.cari.includes(q) ? '' : 'none');
+  });
+
+  // ---------- field kartu RFID: hanya terisi dari tap ke reader ----------
+  const inUid = document.getElementById('rfid_uid');
+  const tombolTap = document.getElementById('tap-kartu');
+  const status = document.getElementById('status-kartu');
+  const tombolSimpan = document.getElementById('simpan-penghuni');
+  let token = null;
+  let timer = null;
+
+  function perbaruiSimpan() {
+    if (tombolSimpan) tombolSimpan.disabled = !inUid.value.trim();
+  }
+  perbaruiSimpan();
+
+  function hentikan() {
+    clearInterval(timer);
+    timer = null;
+    token = null;
+    tombolTap.disabled = false;
+    tombolTap.textContent = status.dataset.uid ? 'Tempel kartu baru' : 'Tempel kartu';
+  }
+
+  async function mulaiTap() {
+    tombolTap.disabled = true;
+    tombolTap.textContent = 'Menunggu kartu…';
+    const r = await fetch('/api/admin/kartu/mulai', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resident_id: document.querySelector('[name=resident_id]').value || null,
+                             detik: 120 })
+    });
+    const j = await r.json();
+    if (!j.ok) {
+      status.innerHTML = j.error || 'Gagal membuka mode tempel kartu.';
+      hentikan();
+      return;
+    }
+    token = j.data.token;
+    if (timer) clearInterval(timer);
+    timer = setInterval(pantau, 1000);
+  }
+
+  async function pantau() {
+    const r = await fetch('/api/admin/kartu/status?token=' + encodeURIComponent(token || ''));
+    const j = await r.json();
+    if (!j.ok || !j.data) { hentikan(); return; }
+    const d = j.data;
+    if (d.uid) {
+      inUid.value = d.uid;
+      status.dataset.uid = d.uid;
+      perbaruiSimpan();
+      if (d.pemilik) {
+        status.innerHTML = `UID <b>${d.uid}</b> sudah dipakai oleh `
+          + `<b>${d.pemilik.nama}</b> (${d.pemilik.kamar}) — simpan akan ditolak.`;
+      } else {
+        status.innerHTML = `Kartu terbaca: <b>${d.uid}</b> · sisa ${d.sisa} detik`;
+      }
+    } else {
+      status.innerHTML = `Menunggu kartu ditempel… sisa ${d.sisa} detik`;
+    }
+  }
+
+  tombolTap.onclick = mulaiTap;
+  window.addEventListener('beforeunload', () => {
+    if (token) navigator.sendBeacon('/api/admin/kartu/batal');
+  });
+</script>
+{% endblock %}

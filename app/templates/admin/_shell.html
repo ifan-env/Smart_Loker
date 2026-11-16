@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block badan %}
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="{{ url_for('admin.beranda') }}">SL</a>
+    <nav class="nav">
+      {% set menu = [
+        ('admin.beranda',  '⌂', 'Beranda'),
+        ('admin.monitor',  '◉', 'Monitor'),
+        ('admin.kamar',    '▦', 'Penghuni'),
+        ('admin.simulasi', '▶', 'Simulasi'),
+        ('admin.events',   '⟳', 'Log'),
+      ] %}
+      {% for endpoint, ikon, label in menu %}
+        <a href="{{ url_for(endpoint) }}" class="{{ 'aktif' if request.endpoint == endpoint }}">
+          <span class="ikon">{{ ikon }}</span>
+          <span class="label">{{ label }}</span>
+        </a>
+      {% endfor %}
+    </nav>
+    <div class="sidebar-bawah">
+      <button class="tombol-titik" type="button" id="buka-profil"
+              aria-haspopup="true" aria-expanded="false"
+              title="Menu akun">⋯</button>
+      <div class="avatar" id="avatar-admin" role="button" tabindex="0"
+           title="Akun dan keluar">{{ (pengguna.nama[:2] if pengguna else 'AI')|upper }}</div>
+
+      <div class="menu-profil" id="menu-profil" hidden>
+        <div class="kepala-profil">
+          <span class="avatar">{{ (pengguna.nama[:2] if pengguna else 'AI')|upper }}</span>
+          <div>
+            <div class="nama">{{ pengguna.nama if pengguna else 'Tidak masuk' }}</div>
+            <div class="ket">{{ pengguna.nomor_kamar if pengguna else '—' }} · {{ pengguna.role if pengguna else '—' }}</div>
+          </div>
+        </div>
+        <a class="baris-menu bahaya" href="{{ url_for('web.logout') }}">Keluar</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="konten">
+    <header class="kepala">
+      <div>
+        <h1>{% block judul_halaman %}{% endblock %}</h1>
+        <p class="sub">{% block sub %}{% endblock %}</p>
+      </div>
+      <div class="aksi">{% block aksi %}{% endblock %}</div>
+    </header>
+    {% include "_flash.html" %}
+    <div class="isi {% block kelas_isi %}{% endblock %}">
+      {% block isi %}{% endblock %}
+    </div>
+    {% block bawah %}{% endblock %}
+  </main>
+</div>
+<script>
+  // Menu akun di pojok kiri bawah sidebar.
+  // Sengaja ditaruh di dalam block "badan" (bukan "skrip") supaya tidak
+  // ikut tertimpa oleh halaman anak yang mengisi block skrip.
+  (() => {
+    const menu = document.getElementById('menu-profil');
+    const tombol = document.getElementById('buka-profil');
+    const avatar = document.getElementById('avatar-admin');
+    if (!menu || !tombol) return;
+
+    function buka(nyala) {
+      if (nyala) {
+        // Menu `position: fixed` supaya tidak terpotong `overflow` sidebar.
+        // Ukur dulu setelah ditampilkan, baru posisinya dihitung.
+        menu.hidden = false;
+        const r = (avatar || tombol).getBoundingClientRect();
+        const lebar = menu.offsetWidth || 236;
+        const tinggi = menu.offsetHeight;
+        const muatKanan = r.right + 12 + lebar <= window.innerWidth;
+        menu.style.left = (muatKanan
+          ? r.right + 12
+          : Math.max(8, r.left - lebar - 12)) + 'px';
+        const atas = r.bottom - tinggi;
+        menu.style.top = Math.max(8, Math.min(atas, window.innerHeight - tinggi - 8)) + 'px';
+      }
+      menu.hidden = !nyala;
+      tombol.setAttribute('aria-expanded', nyala ? 'true' : 'false');
+      tombol.classList.toggle('aktif', nyala);
+    }
+    function alih() {
+      const nyala = menu.hidden;
+      buka(nyala);
+      if (nyala) menu.querySelector('a')?.focus();
+    }
+
+    tombol.onclick = alih;
+    if (avatar) {
+      avatar.onclick = alih;
+      avatar.onkeydown = e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alih(); }
+      };
+    }
+    document.addEventListener('click', e => {
+      if (!menu.hidden && !menu.contains(e.target)
+          && !tombol.contains(e.target) && !(avatar && avatar.contains(e.target))) {
+        buka(false);
+      }
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !menu.hidden) { buka(false); tombol.focus(); }
+    });
+    window.addEventListener('resize', () => {
+      if (!menu.hidden) buka(true);
+    });
+    window.addEventListener('scroll', () => {
+      if (!menu.hidden) buka(true);
+    }, true);
+  })();
+</script>
+{% endblock %}

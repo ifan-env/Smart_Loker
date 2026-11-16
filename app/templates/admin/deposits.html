@@ -1,0 +1,67 @@
+{% extends "admin/_shell.html" %}
+{% block judul %}Deposit · Smart Locker{% endblock %}
+{% block judul_halaman %}Riwayat deposit{% endblock %}
+{% block sub %}Yang berstatus perlu manual harus ditetapkan penerimanya supaya paket bisa diambil{% endblock %}
+{% block aksi %}
+  <a class="tombol" href="{{ url_for('admin.kamar') }}">Kelola penghuni</a>
+{% endblock %}
+
+{% block isi %}
+<div class="kartu" style="padding:20px 8px">
+  <table>
+    <thead>
+      <tr>
+        <th style="padding-left:20px">#</th>
+        <th>Waktu</th>
+        <th>Foto</th>
+        <th>SVM</th>
+        <th>Margin</th>
+        <th>OCR</th>
+        <th>Hasil</th>
+        <th>Penerima</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in deposits %}
+        <tr>
+          <td style="padding-left:20px" class="mono">{{ d.id }}</td>
+          <td style="color:#8a8fa3;font-size:13px">{{ d.captured_at|waktu }}</td>
+          <td>
+            {% if d.photo_path %}
+              <a href="{{ url_for('admin.upload', nama=d.photo_path) }}" target="_blank">
+                <img src="{{ url_for('admin.upload', nama=d.photo_path) }}" alt="Foto deposit {{ d.id }}"
+                     style="width:44px;height:36px;object-fit:cover;border-radius:8px">
+              </a>
+            {% else %}—{% endif %}
+          </td>
+          <td style="font-size:13px">{{ d.svm_kelas or '—' }}</td>
+          <td class="mono">{{ '%.2f'|format(d.svm_margin) if d.svm_margin is not none else '—' }}</td>
+          <td class="mono" style="font-size:12px">
+            {{ d.ocr_resi or '—' }}{% if d.ocr_nama %}<br><span style="color:#8a8fa3">{{ d.ocr_nama }}</span>{% endif %}
+          </td>
+          <td><span class="pill {{ d.result or 'neut' }}">{{ d.result|rapi if d.result else '—' }}</span></td>
+          <td>
+            {% if d.parcel and d.parcel.resident %}
+              {{ d.parcel.resident.nama }}
+            {% else %}
+              <form method="post" action="{{ url_for('admin.assign_form', deposit_id=d.id) }}"
+                    style="display:flex;gap:8px;align-items:center">
+                <select name="resident_id" required
+                        style="height:34px;padding:0 8px;border-radius:10px;font-size:12px;width:130px">
+                  <option value="">pilih…</option>
+                  {% for w in warga %}
+                    <option value="{{ w.id }}">{{ w.nomor_kamar }} · {{ w.nama }}</option>
+                  {% endfor %}
+                </select>
+                <button class="tombol gelap kecil" type="submit">Tetapkan</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8"><p class="sub">Belum ada deposit.</p></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

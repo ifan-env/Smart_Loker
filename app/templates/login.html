@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block judul %}Masuk · Smart Parcel Locker{% endblock %}
+{% block badan %}
+<div class="kartu-login">
+  <a class="logo" href="{{ url_for('web.login') }}">SL</a>
+  <h1>Selamat datang</h1>
+  <p class="sub">Masuk dengan nomor kamar Anda</p>
+  {% include "_flash.html" %}
+  <form method="post" action="{{ url_for('web.login') }}">
+    <label class="label" for="kamar">Nomor kamar</label>
+    <input class="input" id="kamar" name="kamar" required autofocus
+           autocomplete="username" placeholder="mis. A1">
+    <label class="label" for="password">Password</label>
+    <input class="input" id="password" name="password" type="password" required
+           autocomplete="current-password" placeholder="••••••••">
+    <div style="margin-top: 26px">
+      <button class="tombol gelap penuh" type="submit">Masuk</button>
+    </div>
+  </form>
+  <p class="petunjuk pusat" style="margin-top: 22px">Lupa password? Hubungi pengelola</p>
+  <p class="petunjuk pusat">Akun demo: <b>A1 / budi123</b> · <b>admin / admin123</b></p>
+</div>
+{% endblock %}

@@ -1,0 +1,561 @@
+{% extends "admin/_shell.html" %}
+{% block judul %}Monitor Loker · Smart Locker{% endblock %}
+{% block judul_halaman %}Monitor Loker{% endblock %}
+{% block sub %}Kompartemen A · {{ status.serial.mode|upper }}{% if status.serial.port %} {{ status.serial.port }}{% endif %} · kamera {{ status.kamera }}{% endblock %}
+
+{% block aksi %}
+  <button class="tombol" data-aksi="cal" data-sukses="Kalibrasi dikirim ke ESP32">Kalibrasi</button>
+  <button class="tombol" data-aksi="kamera" data-sukses="Kamera terbaca">Tes kamera</button>
+  <button class="tombol" data-aksi="reset" data-sukses="State direset ke standby">Reset state</button>
+  <button class="tombol gelap" data-aksi="unlock" data-sukses="Solenoid aktif — pintu akan terbuka">Buka kunci</button>
+  <button class="tombol bahaya" data-aksi="unlock_paksa" data-sukses="Buka paksa (darurat) dikirim — pintu akan terbuka">Buka paksa</button>
+{% endblock %}
+
+{% block kelas_isi %}isi-monitor{% endblock %}
+
+{% block isi %}
+<div class="banner-peringatan" id="banner-admin" hidden>
+  <div>
+    <b>Loker berhenti di TUNGGU_ADMIN<span id="teks-admin"></span></b>
+    <div class="petunjuk">Paket yang masuk tidak dianalisis dan kamera tidak mengambil foto sampai state direset.</div>
+  </div>
+  <button class="tombol kecil bahaya" data-aksi="reset" data-sukses="State direset ke standby">Reset state</button>
+</div>
+
+<div class="status-strip">
+  <span class="chip" id="chip-koneksi"><i></i><span id="teks-koneksi">Menyambung…</span></span>
+  <span class="chip" id="chip-serial"><i></i><span id="teks-serial">Serial —</span></span>
+  <span class="chip" id="chip-update">Diperbarui <b id="v-update">—</b></span>
+</div>
+
+<div class="grid grid-monitor">
+  <div class="panggung">
+    <div class="kamera">
+      <span class="badge" id="badge-kamera">FOTO TERAKHIR</span>
+      <div class="bingkai">
+        <button class="bingkai-tombol" id="buka-foto" type="button" hidden
+                aria-label="Perbesar foto terakhir">
+          <img id="foto" class="cuplikan" alt="Foto terakhir dari kamera loker"
+               title="Klik untuk memperbesar" hidden>
+          <span class="zoom-petunjuk" aria-hidden="true">⤢</span>
+        </button>
+        <div class="siluet" id="siluet">
+          <div class="kepala"></div>
+          <div class="badan"></div>
+        </div>
+      </div>
+      <div class="kamera-ket" id="foto-ket">Belum ada foto</div>
+    </div>
+
+    <svg id="loker" class="loker" viewBox="380 200 380 590" role="img" aria-label="Ilustrasi loker">
+      <defs>
+        <clipPath id="bukaan">
+          <polygon points="582,502 733,412 733,672 582,762"/>
+        </clipPath>
+      </defs>
+      <ellipse cx="580" cy="762" rx="150" ry="24" fill="#8a8fb0" opacity=".3"/>
+      <polygon points="545,300 735.5,410 579.6,500 389.1,390" fill="#fbfafe"/>
+      <polygon points="579.6,500 735.5,410 735.5,670 579.6,760" fill="#b9a6f0"/>
+      <polygon points="389.1,390 579.6,500 579.6,760 389.1,650" fill="#d6ccf6"/>
+
+      <!-- bidang sisi kanan: u (0→1) dari engsel ke tepi luar, v (0→1) dari atas ke bawah -->
+      <g transform="matrix(155.9 -90 0 260 579.6 500)">
+        <rect class="rongga" x="0.03" y="0.03" width="0.94" height="0.94"/>
+      </g>
+
+      <!-- Kardus 3D di dalam loker. Digambar sebelum daun pintu supaya
+           tertutup saat pintu tertutup. -->
+      <g id="paket" class="paket-dalam" clip-path="url(#bukaan)">
+        <ellipse cx="663" cy="700" rx="58" ry="12" fill="#1c1c22" opacity=".35"/>
+        <g transform="translate(-89 16) scale(1.6)">
+          <polygon points="470,344 512,366 470,388 428,366" fill="#f3d9a4"/>
+          <polygon points="428,366 470,388 470,430 428,408" fill="#e0b672"/>
+          <polygon points="470,388 512,366 512,408 470,430" fill="#c99a4f"/>
+          <line x1="470" y1="344" x2="470" y2="388" stroke="#e8c684" stroke-width="4"/>
+          <line x1="470" y1="388" x2="470" y2="430" stroke="#b98f4a" stroke-width="3"/>
+        </g>
+      </g>
+
+      <g transform="matrix(155.9 -90 0 260 579.6 500)">
+        <g class="daun">
+          <rect x="0.05" y="0.04" width="0.9" height="0.92" fill="#f7f5fd"
+                stroke="#9b7bea" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          <rect x="0.13" y="0.1" width="0.74" height="0.8" fill="none"
+                stroke="#e2dbf7" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+          <rect x="0.07" y="0.2" width="0.04" height="0.1" fill="#8a7bb8"/>
+          <rect x="0.07" y="0.7" width="0.04" height="0.1" fill="#8a7bb8"/>
+          <line class="gagang" x1="0.84" y1="0.44" x2="0.84" y2="0.56" stroke="#1c1c22"
+                stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        </g>
+      </g>
+
+      <ellipse id="cahaya" class="cahaya" cx="562" cy="400" rx="45" ry="25" fill="#ffe7a0"/>
+      <circle cx="562" cy="400" r="7" fill="#ffd76a" class="cahaya-inti"/>
+
+      <g class="pin" id="pin-kamera" transform="translate(620,296)">
+        <path d="M18 0C27.9 0 36 8 36 18C36 30 18 44 18 44C18 44 0 30 0 18C0 8 8.1 0 18 0Z"/>
+        <circle cx="18" cy="17" r="11" fill="#fff"/>
+        <text x="18" y="22" font-size="11" text-anchor="middle" fill="#5b3fc4">▣</text>
+      </g>
+      <g class="pin" id="pin-lampu" transform="translate(560,330)">
+        <path d="M18 0C27.9 0 36 8 36 18C36 30 18 44 18 44C18 44 0 30 0 18C0 8 8.1 0 18 0Z"/>
+        <circle cx="18" cy="17" r="11" fill="#fff"/>
+        <text x="18" y="22" font-size="11" text-anchor="middle" fill="#5f6378">☼</text>
+      </g>
+      <g class="pin" id="pin-kunci" transform="translate(689,505)">
+        <path d="M18 0C27.9 0 36 8 36 18C36 30 18 44 18 44C18 44 0 30 0 18C0 8 8.1 0 18 0Z"/>
+        <circle cx="18" cy="17" r="11" fill="#fff"/>
+        <text x="18" y="22" font-size="11" text-anchor="middle" fill="#1c1c22">⚿</text>
+      </g>
+      <g class="pin" id="pin-sensor" transform="translate(466.4,479)">
+        <path d="M18 0C27.9 0 36 8 36 18C36 30 18 44 18 44C18 44 0 30 0 18C0 8 8.1 0 18 0Z"/>
+        <circle cx="18" cy="17" r="11" fill="#fff"/>
+        <text x="18" y="22" font-size="11" text-anchor="middle" fill="#5f6378">◎</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="kolom-kanan">
+    <div class="kartu">
+      <div class="kepala-kartu">
+        <div>
+          <h2>Kompartemen A</h2>
+          <p class="sub"><span class="pill" id="pill-state">—</span> <span id="label-kondisi">standby</span></p>
+        </div>
+      </div>
+
+      <div class="stepper">
+        <div class="jalur"><div class="isi" id="stepper-isi"></div></div>
+        <div class="titik" id="stepper-titik">
+          {% for i in range(5) %}<span></span>{% endfor %}
+        </div>
+        <div class="nama" id="stepper-nama">
+          {% for nama in ['Standby', 'Paket', 'Tenang', 'Analisis', 'Simpan'] %}<span>{{ nama }}</span>{% endfor %}
+        </div>
+      </div>
+
+      <div class="banner catatan-solenoid">Solenoid 3000 ms · maksimum 3000 ms</div>
+    </div>
+
+    <div class="kartu">
+      <div class="kepala-kartu">
+        <div>
+          <h2>Lampu LED</h2>
+          <p class="sub" id="label-lampu-ket">Mati otomatis 2 menit</p>
+        </div>
+        <button class="toggle" id="toggle-lampu" data-on="0" title="Nyalakan / matikan lampu"></button>
+      </div>
+
+      <div class="bohlam padam" id="bohlam">
+        <div class="glow"></div>
+        <div class="inti"></div>
+        <div class="base"></div>
+      </div>
+
+      <div class="timer">
+        <div class="trek"><div class="isi" id="timer-isi" style="width: 0%"></div></div>
+        <div class="nilai" id="label-lampu">0:00</div>
+      </div>
+    </div>
+
+    <div class="kartu">
+      <div class="kepala-kartu">
+        <div>
+          <h2>Hasil analisis</h2>
+          <p class="sub" id="v-waktu-analisis">Belum ada analisis</p>
+        </div>
+        <span class="pill" id="pill-hasil">—</span>
+      </div>
+
+      <div class="kelas-baris">
+        <span class="pill" id="pill-kelas">—</span>
+        <span class="margin-nilai" id="v-margin">—</span>
+      </div>
+
+      <div class="margin">
+        <div class="margin-trek">
+          <div class="margin-isi" id="margin-isi"></div>
+          <div class="margin-ambang" id="margin-ambang"></div>
+        </div>
+        <div class="margin-skala">
+          <span>0</span>
+          <span>ambang <b id="v-ambang">—</b></span>
+          <span>5</span>
+        </div>
+      </div>
+
+      <dl class="detail-ringkas">
+        <div><dt>Resi</dt><dd class="mono" id="v-resi">—</dd></div>
+        <div><dt>Penerima</dt><dd id="v-nama">—</dd></div>
+        <div><dt>Pencocokan</dt><dd id="v-metode">—</dd></div>
+      </dl>
+      <a class="tautan-kecil" href="{{ url_for('admin.deposits') }}">Lihat semua penitipan →</a>
+    </div>
+
+    <div class="kartu">
+      <div class="kepala-kartu">
+        <div>
+          <h2>Aktivitas terbaru</h2>
+          <p class="sub">Dari log kejadian</p>
+        </div>
+        <a class="tautan-kecil" href="{{ url_for('admin.events') }}">Semua</a>
+      </div>
+      <div class="aktivitas" id="daftar-event"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true"
+     aria-label="Foto bukti diperbesar">
+  <button class="lightbox-tutup" id="lightbox-tutup" type="button" aria-label="Tutup">×</button>
+  <figure class="lightbox-isi">
+    <img id="lightbox-img" alt="Foto bukti diperbesar">
+    <figcaption class="lightbox-ket" id="lightbox-ket"></figcaption>
+  </figure>
+</div>
+{% endblock %}
+
+{% block bawah %}
+<div class="bar-bawah">
+  <div class="item">
+    <span class="ikon">⊟</span>
+    <div><div class="judul">Pintu</div>
+      <div class="ket" id="v-door">—</div></div>
+  </div>
+  <div class="item">
+    <span class="ikon">⚿</span>
+    <div><div class="judul">Kait solenoid</div>
+      <div class="ket" id="v-lock">—</div></div>
+  </div>
+  <div class="item">
+    <span class="ikon">◎</span>
+    <div><div class="judul">Sensor jarak</div>
+      <div class="ket" id="v-object">—</div></div>
+  </div>
+  <div class="item kanan">
+    <span class="ikon">✈</span>
+    <div><div class="judul">Telegram</div>
+      <div class="ket">{{ 'Aktif' if telegram_aktif else 'Nonaktif' }}</div></div>
+    <span class="titik-status {{ 'ok' if telegram_aktif else 'mati' }}"></span>
+  </div>
+</div>
+{% endblock %}
+
+{% block skrip %}
+<script>
+const el = id => document.getElementById(id);
+const AWAL = {{ status|tojson }};
+const FOTO_BASE = "{{ url_for('admin.upload', nama='x') }}".slice(0, -1);
+const SVM_MAKS_SKALA = 5;
+
+const URUT = {
+  IDLE_OPEN: 0, PAKET_MASUK: 1, MENUNGGU_TENANG: 2, ANALISIS: 3,
+  TERSIMPAN: 4, TERSIMPAN_PERLU_MANUAL: 4, PENGAMBILAN: 4, DIAMBIL: 0,
+  TUNGGU_ADMIN: 1,
+};
+const LABEL_STATE = {
+  IDLE_OPEN: 'Standby', PAKET_MASUK: 'Paket terdeteksi', MENUNGGU_TENANG: 'Menunggu tenang',
+  ANALISIS: 'Menganalisis', TERSIMPAN: 'Tersimpan', TERSIMPAN_PERLU_MANUAL: 'Perlu manual',
+  PENGAMBILAN: 'Pengambilan', DIAMBIL: 'Sudah diambil', TUNGGU_ADMIN: 'Tunggu admin',
+};
+const KONDISI = {
+  IDLE_OPEN: 'terkunci, kosong', PAKET_MASUK: 'menunggu pintu ditutup',
+  MENUNGGU_TENANG: 'paket diam, bersiap', ANALISIS: 'SVM dan pembacaan resi berjalan',
+  TERSIMPAN: 'paket tersimpan, menunggu pengambilan', TERSIMPAN_PERLU_MANUAL: 'penerima belum dikenali',
+  PENGAMBILAN: 'pintu terbuka untuk pengambilan', DIAMBIL: 'paket sudah diambil',
+  TUNGGU_ADMIN: 'ditolak berulang, menunggu admin',
+};
+const PILL_STATE = {
+  IDLE_OPEN: 'neut', PAKET_MASUK: 'info', MENUNGGU_TENANG: 'info', ANALISIS: 'info',
+  TERSIMPAN: 'ok', TERSIMPAN_PERLU_MANUAL: 'warn', PENGAMBILAN: 'info', DIAMBIL: 'neut',
+  TUNGGU_ADMIN: 'err',
+};
+const KELAS = { ada_resi: 'Ada resi', bukanresi_m: 'Tempelan bukan resi', tidak_ada_resi: 'Tanpa resi' };
+const PILL_KELAS = { ada_resi: 'ok', bukanresi_m: 'warn', tidak_ada_resi: 'neut' };
+const HASIL = { diterima: 'Diterima', ditolak: 'Ditolak', perlu_manual: 'Perlu manual' };
+const PILL_HASIL = { diterima: 'ok', ditolak: 'err', perlu_manual: 'warn' };
+const METODE = { barcode: 'Barcode', resi: 'Nomor resi', nama: 'Nama penerima', manual: 'Manual admin', simulasi: 'Simulasi' };
+const JENIS_EVENT = {
+  STATE: 'Perubahan state', DOOR: 'Pintu', LOCK: 'Kait solenoid', OBJECT: 'Sensor jarak',
+  RFID: 'Kartu RFID', RFID_TAK_DIKENAL: 'Kartu tidak dikenal', ANALISIS: 'Analisis gambar',
+  PAKET_TERSIMPAN: 'Paket tersimpan', DITOLAK: 'Paket ditolak', PERLU_MANUAL: 'Perlu tindakan admin',
+  PENGAMBILAN_DIMULAI: 'Pengambilan dimulai', PENGAMBILAN_BATAL: 'Pengambilan batal',
+  DIAMBIL: 'Paket diambil', PAKET_HILANG: 'Paket hilang',
+  TOMBOL_TITIP: 'Tombol titip paket', TOMBOL_DITOLAK: 'Tombol titip ditolak',
+  BUKA_DITOLAK: 'Buka manual ditolak', BUKA_PAKSA: 'Buka paksa (darurat)',
+  ALERT_DOOR_FORCED: 'Pintu dibuka paksa', ALERT_LOCK_FORCED: 'Kunci dibuka paksa',
+  PERHATIAN: 'Perhatian', OTP_GAGAL: 'OTP salah', KALIBRASI_OTOMATIS: 'Kalibrasi otomatis',
+  PINTU_TERBUKA_LAMA: 'Pintu terbuka lama', NAMA_AMBIGU: 'Nama ambigu',
+  PANTAU_KARTU: 'Mode daftar kartu dibuka', KARTU_TERBACA: 'Kartu tertempel',
+  PANTAU_KARTU_SELESAI: 'Mode daftar kartu selesai',
+  PANTAU_KARTU_BATAL: 'Mode daftar kartu dibatalkan',
+  KARTU_DIDAFTARKAN: 'Kartu didaftarkan', KARTU_DIHAPUS: 'Kartu dilepas',
+  PENGHUNI_DIEDIT: 'Data penghuni diedit',
+};
+
+let sisaLampu = Number(AWAL.lampu_sisa || 0);
+let fotoAktif = null;
+
+function pill(elemen, teks, kelas) {
+  elemen.className = 'pill' + (kelas ? ' ' + kelas : '');
+  elemen.textContent = teks;
+}
+
+function waktu(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  return isNaN(d) ? '—' : d.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function gambarStepper(state) {
+  const i = URUT[state] ?? 0;
+  el('stepper-isi').style.width = (i / 4 * 100) + '%';
+  [...el('stepper-titik').children].forEach((t, n) => t.classList.toggle('lewat', n <= i));
+  [...el('stepper-nama').children].forEach((t, n) => t.classList.toggle('lewat', n <= i));
+}
+
+function gambarLampu(nyala) {
+  el('bohlam').classList.toggle('padam', !nyala);
+  el('toggle-lampu').classList.toggle('on', nyala);
+  el('toggle-lampu').dataset.on = nyala ? '1' : '0';
+  el('cahaya').classList.toggle('nyala', nyala);
+  el('timer-isi').style.width = nyala ? Math.min(100, sisaLampu / 120 * 100) + '%' : '0%';
+  const m = Math.floor(sisaLampu / 60), s = sisaLampu % 60;
+  el('label-lampu').textContent = `${m}:${String(s).padStart(2, '0')}`;
+  el('label-lampu-ket').textContent = nyala ? 'Menyala, mati otomatis' : 'Mati';
+}
+
+function gambarAnalisis(a) {
+  if (!a) {
+    pill(el('pill-hasil'), '—', '');
+    pill(el('pill-kelas'), 'Belum ada', 'neut');
+    el('v-margin').textContent = '—';
+    el('v-waktu-analisis').textContent = 'Belum ada analisis';
+    el('margin-isi').style.width = '0%';
+    ['v-resi', 'v-nama', 'v-metode'].forEach(id => el(id).textContent = '—');
+    return;
+  }
+  const margin = Number(a.margin || 0);
+  const ragu = a.margin !== null && a.margin < a.ambang;
+  pill(el('pill-kelas'), KELAS[a.kelas] || a.kelas || '—', PILL_KELAS[a.kelas] || 'neut');
+  el('v-margin').textContent = a.margin === null ? '—' : margin.toFixed(2);
+  el('margin-isi').style.width = Math.min(100, margin / SVM_MAKS_SKALA * 100) + '%';
+  el('margin-isi').className = 'margin-isi ' + (ragu ? 'warn' : margin >= a.ambang ? 'ok' : 'mati');
+  el('margin-ambang').style.left = Math.min(100, a.ambang / SVM_MAKS_SKALA * 100) + '%';
+  el('v-ambang').textContent = Number(a.ambang).toFixed(2);
+  el('v-waktu-analisis').textContent = `Deposit #${a.id} · ${waktu(a.waktu)}`;
+  pill(el('pill-hasil'), HASIL[a.hasil] || 'Berjalan', PILL_HASIL[a.hasil] || 'info');
+  el('v-resi').textContent = a.resi || '—';
+  el('v-nama').textContent = a.nama || '—';
+  el('v-metode').textContent = a.metode ? (METODE[a.metode] || a.metode) : (a.hasil === 'perlu_manual' ? 'Belum cocok' : '—');
+}
+
+function gambarFoto(nama, id) {
+  const img = el('foto');
+  const tombol = el('buka-foto');
+  if (nama) {
+    if (fotoAktif !== nama) {
+      img.src = FOTO_BASE + encodeURIComponent(nama);
+      fotoAktif = nama;
+    }
+    img.hidden = false;
+    tombol.hidden = false;
+    el('siluet').hidden = true;
+    el('foto-ket').textContent = id ? `Deposit #${id}` : 'Foto bukti';
+  } else {
+    img.hidden = true;
+    tombol.hidden = true;
+    el('siluet').hidden = false;
+    el('foto-ket').textContent = 'Belum ada foto';
+  }
+}
+
+function gambarEvent(daftar) {
+  const wadah = el('daftar-event');
+  wadah.innerHTML = '';
+  if (!daftar || !daftar.length) {
+    wadah.innerHTML = '<p class="sub">Belum ada kejadian.</p>';
+    return;
+  }
+  daftar.forEach(e => {
+    const baris = document.createElement('div');
+    baris.className = 'baris';
+    const titik = document.createElement('span');
+    titik.className = 'titik-event ' + (e.severity || 'info');
+    const isi = document.createElement('div');
+    isi.className = 'isi';
+    const judul = document.createElement('div');
+    judul.className = 'judul';
+    judul.textContent = JENIS_EVENT[e.type] || e.type.replace(/_/g, ' ').toLowerCase();
+    const jam = document.createElement('div');
+    jam.className = 'waktu';
+    jam.textContent = waktu(e.waktu);
+    isi.append(judul, jam);
+    baris.append(titik, isi);
+    wadah.append(baris);
+  });
+}
+
+function perbarui(d) {
+  const state = d.state;
+  const perluAdmin = state === 'TUNGGU_ADMIN';
+  el('banner-admin').hidden = !perluAdmin;
+  if (perluAdmin) {
+    el('teks-admin').textContent = d.catatan ? ` · ${d.catatan}` : '';
+  }
+  pill(el('pill-state'), LABEL_STATE[state] || state, PILL_STATE[state] || 'neut');
+  el('label-kondisi').textContent = KONDISI[state] || '—';
+  gambarStepper(state);
+
+  const s = d.sensor || {};
+  const pintuTerbuka = s.door === 'open';
+  const terkunci = s.lock === 'locked';
+  const ada = s.object === 'present';
+  const nyala = s.light === 'on';
+  const solenoid = s.solenoid === 'on';
+
+  el('loker').classList.toggle('pintu-terbuka', pintuTerbuka);
+  el('loker').classList.toggle('ada-paket', ada);
+  el('paket').classList.toggle('ada', ada);
+  el('pin-kunci').setAttribute('class', 'pin ' + (solenoid ? 'aktif' : terkunci ? 'ok' : 'mati'));
+  el('pin-sensor').setAttribute('class', 'pin ' + (ada ? 'aktif' : 'mati'));
+  el('pin-lampu').setAttribute('class', 'pin ' + (nyala ? 'ok' : 'mati'));
+  el('pin-kamera').setAttribute('class', 'pin ' + (d.analisis ? 'aktif' : 'mati'));
+
+  el('v-door').textContent = pintuTerbuka ? 'Terbuka' : 'Tertutup';
+  el('v-lock').textContent = terkunci ? 'Terkunci (istirahat)' : 'Terlepas (sesaat)';
+  el('v-object').textContent = ada
+    ? (s.dist ? `Ada benda · ${s.dist} cm` : 'Ada benda')
+    : 'Kosong';
+
+  const terhubung = !!(d.serial && d.serial.terhubung);
+  el('chip-serial').className = 'chip ' + (terhubung ? 'on' : 'off');
+  el('teks-serial').textContent = terhubung
+    ? `Serial ${d.serial.mode === 'real' ? 'ESP32' : 'simulator'} terhubung`
+    : 'Serial terputus';
+  document.querySelectorAll('[data-aksi], #toggle-lampu').forEach(b => {
+    b.disabled = !terhubung && d.serial && d.serial.mode === 'real';
+  });
+
+  // Tombol buka manual ditahan selama ada paket di dalam: paket hanya boleh
+  // keluar lewat RFID/OTP, bukan dari menu admin.
+  const stateBerisi = ['PAKET_MASUK', 'MENUNGGU_TENANG', 'ANALISIS',
+                       'TERSIMPAN', 'TERSIMPAN_PERLU_MANUAL', 'PENGAMBILAN'];
+  const blokirBuka = ada || stateBerisi.includes(state);
+  const tombolBuka = document.querySelector('[data-aksi="unlock"]');
+  if (tombolBuka) {
+    if (blokirBuka) tombolBuka.disabled = true;
+    tombolBuka.title = blokirBuka
+      ? 'Tidak bisa dibuka: ada paket di dalam loker (pakai RFID/OTP)'
+      : 'Buka kait solenoid secara manual';
+  }
+
+  sisaLampu = Number(d.lampu_sisa || 0);
+  gambarLampu(nyala);
+  gambarAnalisis(d.analisis);
+  gambarFoto(d.foto_terakhir, d.analisis && d.analisis.id);
+  gambarEvent(d.event_terakhir);
+  el('v-update').textContent = new Date().toLocaleTimeString('id-ID');
+}
+
+function setKoneksi(on) {
+  el('chip-koneksi').className = 'chip ' + (on ? 'on' : 'off');
+  el('teks-koneksi').textContent = on ? 'Live' : 'Terputus, menyambung ulang…';
+}
+
+let toastTimer = null;
+function toast(pesan, jenis) {
+  const t = el('toast');
+  t.textContent = pesan;
+  t.className = 'toast tampil ' + (jenis || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('tampil'), 2800);
+}
+
+async function kirim(url, isi, tombol, sukses) {
+  if (tombol) tombol.disabled = true;
+  try {
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(isi || {})
+    });
+    const j = await r.json();
+    if (!j.ok) toast(j.error || 'Perintah gagal', 'err');
+    else if (sukses) {
+      const detail = j.data && j.data.ukuran
+        ? ` (${j.data.perangkat ? j.data.perangkat + ' · ' : ''}${j.data.ukuran})`
+        : '';
+      toast(sukses + detail, 'ok');
+    }
+  } catch (e) {
+    toast('Tidak bisa menghubungi server', 'err');
+  } finally {
+    if (tombol) tombol.disabled = false;
+  }
+}
+
+setInterval(() => {
+  if (el('toggle-lampu').dataset.on === '1' && sisaLampu > 0) {
+    sisaLampu -= 1;
+    gambarLampu(true);
+  }
+}, 1000);
+
+perbarui(AWAL);
+setKoneksi(true);
+
+const es = new EventSource('/api/stream');
+es.onopen = () => setKoneksi(true);
+es.onerror = () => setKoneksi(false);
+es.onmessage = e => {
+  const d = JSON.parse(e.data);
+  if (d.tipe === 'status') perbarui(d.data);
+};
+
+document.querySelectorAll('[data-aksi]').forEach(b => b.onclick = () => {
+  if (b.dataset.aksi === 'reset' && !confirm('Reset state loker ke standby?')) return;
+  if (b.dataset.aksi === 'unlock_paksa') {
+    const pesan = 'BUKA PAKSA (darurat)\n\n'
+      + 'Loker akan dibuka walaupun ada paket di dalam. '
+      + 'Tindakan ini dicatat sebagai peringatan dan dikirim ke admin.\n\n'
+      + 'Lanjutkan?';
+    if (!confirm(pesan)) return;
+  }
+  kirim('/api/admin/' + b.dataset.aksi, {}, b, b.dataset.sukses);
+});
+
+el('toggle-lampu').onclick = () => {
+  const nyala = el('toggle-lampu').dataset.on !== '1';
+  sisaLampu = nyala ? 120 : 0;
+  gambarLampu(nyala);
+  kirim('/api/admin/light', { on: nyala }, null, nyala ? 'Lampu dinyalakan' : 'Lampu dimatikan');
+};
+
+// ---------- lightbox foto bukti ----------
+const lightbox = el('lightbox');
+
+function tutupLightbox() {
+  if (lightbox.hidden) return;
+  lightbox.hidden = true;
+  document.body.classList.remove('lightbox-aktif');
+  el('lightbox-img').removeAttribute('src');
+}
+
+el('buka-foto').onclick = () => {
+  if (!fotoAktif) return;
+  el('lightbox-img').src = FOTO_BASE + encodeURIComponent(fotoAktif);
+  el('lightbox-ket').textContent = el('foto-ket').textContent;
+  lightbox.hidden = false;
+  document.body.classList.add('lightbox-aktif');
+  el('lightbox-tutup').focus();
+};
+
+el('lightbox-tutup').onclick = tutupLightbox;
+lightbox.onclick = e => { if (e.target === lightbox) tutupLightbox(); };
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') tutupLightbox();
+});
+</script>
+{% endblock %}

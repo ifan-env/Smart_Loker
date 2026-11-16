@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block judul %}Smart Parcel Locker{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="{% block kelas %}{% endblock %}">
+{% block badan %}{% endblock %}
+{% block skrip %}{% endblock %}
+</body>
+</html>

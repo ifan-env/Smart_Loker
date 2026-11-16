@@ -1,0 +1,62 @@
+{% extends "admin/_shell.html" %}
+{% block judul %}Simulasi · Smart Locker{% endblock %}
+{% block judul_halaman %}Simulasi{% endblock %}
+{% block sub %}Uji alur tanpa hardware · hanya aktif saat SERIAL_MODE=mock{% endblock %}
+{% block aksi %}
+  <button class="tombol" data-sim="reset">Reset simulator</button>
+{% endblock %}
+
+{% block isi %}
+{% set skenario = [
+  ('▣', 'Paket valid',           'Resi SPXID06889509307A cocok dengan penghuni A1. Foto diterima dan kode ambil dibuat.', '→ Tersimpan',    'ok',   'paket_valid'),
+  ('▢', 'Paket tanpa resi',      'Kardus polos. SVM mengenali tidak_ada_resi, pintu dibuka lagi untuk ditata ulang.',      '→ Ditolak',      'err',  'tanpa_resi'),
+  ('✕', 'Tempelan palsu',        'Stiker non-resi. SVM mengenali bukanresi_m dan paket ditolak.',                            '→ Ditolak',      'err',  'tempelan_palsu'),
+  ('?', 'Penerima tak dikenal',  'Resi terbaca tetapi tidak ada penghuni yang cocok. Masuk antrean admin.',                 '→ Perlu manual', 'warn', 'penerima_tak_dikenal'),
+  ('!', 'Buka paksa',            'Pintu dibuka tanpa perintah sah saat loker kosong. Dicatat sebagai alarm.',                '→ Alert',        'err',  'buka_paksa'),
+  ('◉', 'Pengambilan RFID',      'Kartu A1B2C3D4 ditempel saat ada paket tersimpan untuk kamar A1.',                        '→ Pengambilan',  'info', 'pengambilan'),
+] %}
+
+<div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  {% for ikon, judul, ket, hasil, tone, kunci in skenario %}
+    <div class="kartu skenario" style="display:flex;flex-direction:column">
+      <span class="ikon">{{ ikon }}</span>
+      <div class="judul">{{ judul }}</div>
+      <div class="ket">{{ ket }}</div>
+      <div class="kaki">
+        <span class="pill {{ tone }}">{{ hasil }}</span>
+        <button class="tombol gelap kecil" data-sim="{{ kunci }}">Jalankan</button>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="kartu" style="margin-top:16px">
+  <h2>Urutan event terakhir</h2>
+  <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
+    {% for e in aktivitas %}
+      <div style="display:flex;gap:16px;font-size:13px;color:#5f6378">
+        <span class="mono" style="color:#8a8fa3">{{ e.created_at|jam }}</span>
+        <span style="font-weight:600;color:#1c1c22">{{ e.type }}</span>
+        <span>{{ e.payload|ringkas(80) }}</span>
+      </div>
+    {% else %}
+      <p class="sub">Belum ada event simulasi.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block skrip %}
+<script>
+async function kirim(nama) {
+  const r = await fetch('/api/admin/simulasi', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nama })
+  });
+  const j = await r.json();
+  if (!j.ok) alert(j.error || 'Gagal menjalankan simulasi');
+  else setTimeout(() => location.reload(), 3500);
+}
+document.querySelectorAll('[data-sim]').forEach(b => b.onclick = () => kirim(b.dataset.sim));
+</script>
+{% endblock %}

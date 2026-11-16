@@ -1,0 +1,103 @@
+{% extends "admin/_shell.html" %}
+{% block judul %}Log Kejadian · Smart Locker{% endblock %}
+{% block judul_halaman %}Log Kejadian{% endblock %}
+{% block sub %}Semua event dari state machine · tabel events{% endblock %}
+
+{% block isi %}
+<div class="cips">
+  <a href="{{ url_for('admin.events') }}" class="{{ 'aktif' if not aktif }}">Semua</a>
+  <a href="{{ url_for('admin.events', severity='info') }}" class="{{ 'aktif' if aktif == 'info' }}">Info</a>
+  <a href="{{ url_for('admin.events', severity='warning') }}" class="{{ 'aktif' if aktif == 'warning' }}">Warning</a>
+</div>
+
+<div class="kartu kartu-log">
+  <table class="tabel-log">
+    <thead>
+      <tr>
+        <th style="width:96px">Waktu</th>
+        <th style="width:220px">Jenis</th>
+        <th style="width:120px">Tingkat</th>
+        <th>Detail</th>
+      </tr>
+    </thead>
+    <tbody id="log-baris">
+      {% include "admin/_events_rows.html" %}
+      {% if not events %}
+        <tr><td colspan="4"><p class="sub">Belum ada kejadian.</p></td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+  <div class="log-pemuat{{ ' tampil' if lebih }}" id="log-pemuat">{% if lebih %}Memuat kejadian lama…{% endif %}</div>
+</div>
+{% endblock %}
+
+{% block skrip %}
+<script>
+(() => {
+  const tbody = document.getElementById('log-baris');
+  const pemuat = document.getElementById('log-pemuat');
+  if (!tbody || !pemuat) return;
+
+  const aktif = {{ aktif|tojson }};
+  const endpoint = {{ url_for('admin.events_more')|tojson }};
+  let kursor = {{ kursor|tojson }};
+  let lebih = {{ 'true' if lebih else 'false' }};
+  let jalan = false;
+
+  function tulisPemuat() {
+    pemuat.classList.toggle('tampil', lebih);
+    if (lebih) {
+      pemuat.textContent = 'Memuat kejadian lama…';
+    } else {
+      pemuat.textContent = tbody.querySelector('tr') ? 'Semua kejadian sudah dimuat.' : '';
+    }
+  }
+
+  async function muatLagi() {
+    if (!lebih || jalan || kursor === null) return;
+    jalan = true;
+    pemuat.classList.add('tampil');
+    pemuat.textContent = 'Memuat kejadian lama…';
+    try {
+      const url = new URL(endpoint, location.origin);
+      if (aktif) url.searchParams.set('severity', aktif);
+      url.searchParams.set('before', kursor);
+      const res = await fetch(url, { headers: { 'X-Requested-With': 'fetch' } });
+      const balas = await res.json();
+      if (!res.ok || !balas.ok) throw new Error(balas.error || 'Gagal memuat log');
+      const isi = (balas.data && balas.data.html) || '';
+      if (isi.trim()) tbody.insertAdjacentHTML('beforeend', isi);
+      kursor = balas.data.kursor;
+      lebih = !!balas.data.lebih && kursor !== null;
+    } catch (err) {
+      pemuat.textContent = 'Gagal memuat. Gulir lagi untuk mencoba.';
+      pemuat.classList.remove('tampil');
+    } finally {
+      jalan = false;
+    }
+    tulisPemuat();
+    // Amati ulang supaya pemuatan berikutnya tetap terpicu walau sentinel
+    // sudah terlihat sejak awal (IntersectionObserver tidak memicu ulang).
+    if (pengamat) { pengamat.unobserve(pemuat); pengamat.observe(pemuat); }
+  }
+
+  let pengamat = null;
+  if ('IntersectionObserver' in window) {
+    pengamat = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) muatLagi();
+    }, { rootMargin: '320px 0px' });
+    pengamat.observe(pemuat);
+  } else {
+    const wadah = document.querySelector('.isi');
+    const dekatBawah = () => {
+      if (wadah && wadah.scrollHeight > wadah.clientHeight + 4) {
+        return wadah.scrollTop + wadah.clientHeight >= wadah.scrollHeight - 320;
+      }
+      return window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 320;
+    };
+    window.addEventListener('scroll', () => { if (dekatBawah()) muatLagi(); }, { passive: true });
+    if (wadah) wadah.addEventListener('scroll', () => { if (dekatBawah()) muatLagi(); }, { passive: true });
+  }
+})();
+</script>
+{% endblock %}

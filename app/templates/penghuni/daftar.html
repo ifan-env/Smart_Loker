@@ -1,0 +1,24 @@
+{% extends "web/_shell.html" %}
+{% block judul %}Daftarkan Resi · Smart Locker{% endblock %}
+{% block isi %}
+<a class="tautan-kecil" href="{{ url_for('web.dashboard') }}">← Kembali ke paket</a>
+<h1 class="sapaan" style="margin-top:14px">Daftarkan resi</h1>
+
+<div class="banner" style="margin-top:20px">
+  Opsional. Dengan resi terdaftar, paket Anda lebih cepat dikenali saat tiba di loker.
+</div>
+
+<form method="post" action="{{ url_for('web.tambah_paket') }}">
+  <label class="label" for="resi">Nomor resi</label>
+  <input class="input" id="resi" name="resi" required minlength="6"
+         placeholder="contoh: SPXID06889509307A" autocomplete="off">
+  <p class="petunjuk">Minimal 6 karakter, huruf dan angka saja.</p>
+  <div style="margin-top:26px">
+    <button class="tombol gelap penuh" type="submit">Simpan resi</button>
+  </div>
+</form>
+
+<p class="petunjuk pusat" style="margin-top:26px">
+  Paket sudah ada di loker? Buka menu <a class="tautan-kecil" href="{{ url_for('web.ambil') }}">Ambil Paket</a>.
+</p>
+{% endblock %}

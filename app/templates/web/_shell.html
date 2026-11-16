@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block badan %}
+<header class="topbar">
+  <a class="logo" href="{{ url_for('web.beranda') }}">SL</a>
+  <div class="kanan">
+    {% if pengguna %}
+      <span class="who">{{ pengguna.nama }} · {{ pengguna.nomor_kamar }}</span>
+      <a class="tautan" href="{{ url_for('web.logout') }}">Keluar</a>
+    {% endif %}
+  </div>
+</header>
+
+<main class="web">
+  {% if pengguna %}
+  <nav class="tab">
+    <a href="{{ url_for('web.dashboard') }}"
+       class="{{ 'aktif' if request.endpoint in ('web.dashboard', 'web.daftar', 'web.detail') }}">Paket Saya</a>
+    <a href="{{ url_for('web.ambil') }}"
+       class="{{ 'aktif' if request.endpoint == 'web.ambil' }}">Ambil Paket</a>
+  </nav>
+  {% endif %}
+  {% include "_flash.html" %}
+  {% block isi %}{% endblock %}
+</main>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "web/_shell.html" %}
+{% block judul %}Paket Saya · Smart Locker{% endblock %}
+{% block isi %}
+{% set tersimpan = paket|selectattr('status', 'equalto', 'tersimpan')|list|length %}
+
+<h1 class="sapaan">Halo, {{ pengguna.nama.split()[0] }}</h1>
+<p class="sub">Kamar {{ pengguna.nomor_kamar }} ·
+  {% if tersimpan %}{{ tersimpan }} paket menunggu diambil{% else %}belum ada paket menunggu{% endif %}
+</p>
+
+<section class="ringkasan">
+  <div>
+    <div class="label">Paket menunggu diambil</div>
+    <div class="angka">{{ tersimpan }}</div>
+  </div>
+  {% if tersimpan %}
+    <a class="tombol" href="{{ url_for('web.ambil') }}">Ambil paket</a>
+  {% else %}
+    <a class="tombol" href="{{ url_for('web.daftar') }}">Daftarkan resi</a>
+  {% endif %}
+</section>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:30px">
+  <h2 class="judul-bagian" style="margin:0">Riwayat paket</h2>
+  <a class="tautan-kecil" href="{{ url_for('web.daftar') }}">+ Daftarkan resi</a>
+</div>
+
+<div class="daftar-paket" style="margin-top:14px">
+  {% for p in paket %}
+    <a class="paket" href="{{ url_for('web.detail', pid=p.id) }}">
+      <span class="pill {{ p.status }}">{{ p.status|rapi }}</span>
+      <div class="resi">{{ p.tracking_number or 'Tanpa nomor resi' }}</div>
+      <div class="meta">
+        {% if p.status == 'tersimpan' %}
+          Masuk {{ p.stored_at|waktu }}{% if p.resident %} · kamar {{ p.resident.nomor_kamar }}{% endif %}
+        {% elif p.status == 'diambil' %}
+          Diambil {{ p.picked_at|waktu }}
+        {% elif p.status == 'menunggu' %}
+          Didaftarkan {{ p.created_at|waktu }} · menunggu kurir
+        {% else %}
+          {{ p.created_at|waktu }}
+        {% endif %}
+      </div>
+      <div class="buka">Lihat detail →</div>
+    </a>
+  {% else %}
+    <div class="kartu pusat">
+      <p class="sub" style="margin:0">Belum ada paket. Daftarkan nomor resi supaya paket
+        Anda langsung dikenali saat tiba.</p>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

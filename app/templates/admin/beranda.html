@@ -1,0 +1,74 @@
+{% extends "admin/_shell.html" %}
+{% block judul %}Beranda · Smart Locker{% endblock %}
+{% block judul_halaman %}Beranda{% endblock %}
+{% block sub %}Ringkasan loker · {{ sekarang|tanggal }}{% endblock %}
+{% block aksi %}
+  <a class="tombol gelap" href="{{ url_for('admin.monitor') }}">Buka monitor</a>
+{% endblock %}
+
+{% block isi %}
+<div class="grid grid-4">
+  <div class="kartu kartu-stat">
+    <div class="label">Paket tersimpan</div>
+    <div class="angka">{{ ringkasan.tersimpan }}</div>
+    <div class="ket">menunggu diambil</div>
+  </div>
+  <div class="kartu kartu-stat">
+    <div class="label">Perlu tindakan</div>
+    <div class="angka">{{ ringkasan.perlu_manual }}</div>
+    <div class="ket">deposit tanpa penerima</div>
+  </div>
+  <div class="kartu kartu-stat">
+    <div class="label">Penghuni aktif</div>
+    <div class="angka">{{ ringkasan.resident }}</div>
+    <div class="ket">akun terdaftar</div>
+  </div>
+  <div class="kartu kartu-stat">
+    <div class="label">Anomali</div>
+    <div class="angka">{{ ringkasan.anomali }}</div>
+    <div class="ket">kejadian tingkat warning</div>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-top:16px;grid-template-columns:1.6fr 1fr">
+  <div class="kartu">
+    <h2>Aktivitas terbaru</h2>
+    <div class="aktivitas">
+      {% for e in aktivitas %}
+        <div class="baris">
+          <span class="titik" style="background:
+            {%- if e.type in ('PAKET_TERSIMPAN', 'DIAMBIL') %}#2e8b68
+            {%- elif e.severity == 'warning' %}#a8731a
+            {%- else %}#5b3fc4{% endif %}"></span>
+          <div class="isi">
+            <div class="judul">{{ e.type|replace('_', ' ')|title }}</div>
+            <div class="ket">{{ e.payload|ringkas(90) }}</div>
+          </div>
+          <span class="waktu">{{ e.created_at|jam('%H:%M') }}</span>
+        </div>
+      {% else %}
+        <p class="sub">Belum ada kejadian.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="kartu">
+    <h2>Kondisi perangkat</h2>
+    <div class="perangkat">
+      <div class="baris"><span>ESP32 (serial)</span>
+        <span class="pill {{ 'ok' if status.serial.terhubung else 'err' }}">
+          {{ 'Terhubung' if status.serial.terhubung else 'Terputus' }} · {{ status.serial.mode }}</span></div>
+      <div class="baris"><span>Kamera dalam</span>
+        <span class="pill {{ 'info' if status.kamera == 'mock' else 'ok' }}">{{ status.kamera }}</span></div>
+      <div class="baris"><span>Model SVM</span>
+        <span class="pill info">v{{ status.svm.epoch_terbaik or '-' }} · {{ status.svm.jumlah_fitur or '-' }} fitur</span></div>
+      <div class="baris"><span>Versi sklearn</span>
+        <span class="pill neut">{{ status.svm.sklearn or '-' }}</span></div>
+      <div class="baris"><span>Telegram</span>
+        <span class="pill {{ 'ok' if telegram_aktif else 'neut' }}">{{ 'Aktif' if telegram_aktif else 'Nonaktif' }}</span></div>
+      <div class="baris"><span>Pintu &amp; kunci</span>
+        <span class="pill ok">{{ status.sensor.door|sensor }} · {{ status.sensor.lock|sensor }}</span></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+.env
+AGENTS-web.md
+data/*.db
+data/*.db-*
+uploads/*
+!uploads/.gitkeep
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/frames/cek/
+vision/__pycache__/

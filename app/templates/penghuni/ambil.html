@@ -1,0 +1,91 @@
+{% extends "web/_shell.html" %}
+{% block judul %}Ambil Paket · Smart Locker{% endblock %}
+{% block isi %}
+
+{% if hasil == 'ok' %}
+  <div class="kartu kartu-hasil">
+    <div class="lingkaran ok">✓</div>
+    <h2>Pintu terbuka</h2>
+    <p class="sub">Silakan ambil paket Anda, lalu tutup pintu loker.</p>
+    <a class="tombol gelap penuh" href="{{ url_for('web.dashboard') }}">Selesai</a>
+  </div>
+
+{% elif hasil == 'err' %}
+  <div class="kartu kartu-hasil">
+    <div class="lingkaran err">!</div>
+    <h2>Kode tidak sesuai</h2>
+    <p class="sub">{{ pesan or 'Periksa kode di Telegram atau gunakan kartu RFID.' }}</p>
+    <a class="tombol gelap penuh" href="{{ url_for('web.ambil') }}">Coba lagi</a>
+    <p class="petunjuk" style="margin-top:16px">
+      Alternatif: tempelkan kartu RFID Anda di loker.
+    </p>
+  </div>
+
+{% else %}
+  <h1 class="sapaan">Ambil paket</h1>
+  <p class="sub">Masukkan kode 6 digit yang dikirim ke Telegram Anda.</p>
+
+  <form method="post" action="{{ url_for('web.ambil') }}" id="form-ambil">
+    <label class="label">Kode ambil</label>
+    <div class="otp" id="otp">
+      {% for i in range(1, 7) %}
+        <input name="d{{ i }}" inputmode="numeric" pattern="[0-9]*" maxlength="1"
+               autocomplete="one-time-code" aria-label="Digit {{ i }}"
+               {% if loop.first %}autofocus{% endif %}>
+      {% endfor %}
+    </div>
+    <input type="hidden" name="kode" id="kode-gabung">
+
+    <div style="margin-top:26px">
+      <button class="tombol gelap penuh" type="submit">Buka loker</button>
+    </div>
+  </form>
+
+  <p class="petunjuk">Kode berlaku {{ config.OTP_MENIT }} menit · {{ config.OTP_MAKS_PERCOBAAN }} percobaan</p>
+
+  <p class="petunjuk pusat" style="margin:22px 0">atau</p>
+
+  <div class="kartu kartu-rfid">
+    <span class="ikon">◉</span>
+    <div>
+      <div class="judul">Tempel kartu RFID</div>
+      <div class="ket">Kartu terdaftar di kamar {{ pengguna.nomor_kamar }}</div>
+    </div>
+  </div>
+
+  <p class="petunjuk pusat" style="margin-top:24px">
+    Pintu terbuka 3 detik lalu terkunci otomatis.
+  </p>
+{% endif %}
+
+{% endblock %}
+
+{% block skrip %}
+{% if not hasil %}
+<script>
+  const kotak = [...document.querySelectorAll('#otp input')];
+  const gabung = document.getElementById('kode-gabung');
+  const simpan = () => { gabung.value = kotak.map(k => k.value).join(''); };
+  kotak.forEach((k, i) => {
+    k.addEventListener('input', () => {
+      k.value = k.value.replace(/\D/g, '').slice(0, 1);
+      if (k.value && i < kotak.length - 1) kotak[i + 1].focus();
+      simpan();
+    });
+    k.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !k.value && i > 0) kotak[i - 1].focus();
+    });
+    k.addEventListener('paste', e => {
+      const teks = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+      if (teks.length > 1) {
+        e.preventDefault();
+        teks.slice(0, 6).split('').forEach((d, j) => { if (kotak[j]) kotak[j].value = d; });
+        kotak[Math.min(teks.length, 5)].focus();
+        simpan();
+      }
+    });
+  });
+  document.getElementById('form-ambil').addEventListener('submit', simpan);
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "web/_shell.html" %}
+{% block judul %}Detail Paket · Smart Locker{% endblock %}
+{% block isi %}
+<a class="tautan-kecil" href="{{ url_for('web.dashboard') }}">← Kembali ke paket</a>
+<h1 class="sapaan" style="margin-top:14px">Detail paket</h1>
+<p class="sub">{{ parcel.tracking_number or 'Tanpa nomor resi' }}</p>
+
+<div class="foto-bukti">
+  {% if deposit and deposit.photo_path %}
+    <img src="{{ url_for('web.upload', nama=deposit.photo_path) }}"
+         alt="Foto paket di dalam loker">
+  {% else %}
+    <span style="color:#8f96ad;font-size:13px">Belum ada foto bukti</span>
+  {% endif %}
+  <span class="caption">
+    Foto dari kamera loker{% if deposit %} · {{ deposit.captured_at|jam('%H:%M') }}{% endif %}
+  </span>
+</div>
+
+<div class="kartu" style="margin-top:20px">
+  <div class="detail-baris">
+    <span class="kunci">Status</span>
+    <span class="pill {{ parcel.status }}">{{ parcel.status|rapi }}</span>
+  </div>
+  <div class="detail-baris">
+    <span class="kunci">Resi terbaca</span>
+    <span class="nilai">{{ deposit.ocr_resi if deposit and deposit.ocr_resi else (parcel.tracking_number or '-') }}</span>
+  </div>
+  <div class="detail-baris">
+    <span class="kunci">Nama di label</span>
+    <span class="nilai">{{ deposit.ocr_nama if deposit and deposit.ocr_nama else pengguna.nama }}</span>
+  </div>
+  <div class="detail-baris">
+    <span class="kunci">Cara membaca</span>
+    <span class="nilai">{{ (deposit.match_method or '-')|capitalize }}</span>
+  </div>
+  <div class="detail-baris">
+    <span class="kunci">Waktu simpan</span>
+    <span class="nilai">{{ parcel.stored_at|waktu }}</span>
+  </div>
+</div>
+
+{% if parcel.status == 'tersimpan' %}
+<div style="margin-top:20px">
+  <a class="tombol gelap penuh" href="{{ url_for('web.ambil') }}">Ambil paket ini</a>
+</div>
+{% endif %}
+{% endblock %}

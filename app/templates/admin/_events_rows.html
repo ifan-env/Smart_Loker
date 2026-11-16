@@ -1,0 +1,8 @@
+{% for e in events %}
+  <tr>
+    <td class="mono" style="color:#8a8fa3" title="{{ e.created_at|waktu }}">{{ e.created_at|jam }}</td>
+    <td><span style="font-weight:600;font-size:13px">{{ e.type }}</span></td>
+    <td><span class="pill {{ 'warn' if e.severity == 'warning' else 'info' }}">{{ e.severity }}</span></td>
+    <td class="mono detail" style="color:#5f6378" title="{{ e.payload|ringkas(600) }}">{{ e.payload|ringkas(110) }}</td>
+  </tr>
+{% endfor %}

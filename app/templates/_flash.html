@@ -1,0 +1,5 @@
+{% with pesan = get_flashed_messages(with_categories=true) %}
+  {% for kategori, teks in pesan %}
+    <div class="flash {{ kategori }}">{{ teks }}</div>
+  {% endfor %}
+{% endwith %}
